@@ -6,6 +6,10 @@
 
   let gameContainer: any;
 
+  let isSpinning = false;
+  let isShowNotif = false;
+  let notifMsg = "";
+
   let ticker = PIXI.Ticker.shared;
   const wheel = new PIXI.Container();
   wheel.eventMode = "static";
@@ -18,7 +22,14 @@
 
   const colors = [0xd3f8e2, 0xe4c1f9, 0xf694c1, 0xede7b1, 0xa9def9];
 
-  let segments: PIXI.Graphics[] = [];
+  let segments: { segment: PIXI.Graphics; label: string }[] = [];
+
+  let pointer = new PIXI.Graphics();
+
+  const debugRect = new PIXI.Graphics()
+    .beginFill(0xffffff)
+    .drawRect(0, 0, 20, 20)
+    .endFill();
 
   // generate wheel
   function genWheel(opts: string[]) {
@@ -61,23 +72,51 @@
 
       wheel.addChild(labelContainer);
 
-      segments.push(segment);
+      segments.push({ segment, label: opts[i] });
     }
   }
 
+  function showNotif(msg: string) {
+    isShowNotif = true;
+    notifMsg = msg;
+    setTimeout(() => {
+      isShowNotif = false;
+      notifMsg = "";
+    }, 2000);
+  }
+
   function spinWheel() {
+    isSpinning = true;
     power = { speed: 0 };
-    const randSpeed = randomInt(20, 100);
+    const randSpeed = randomInt(10, 20);
     tween = new TWEEN.Tween(power, false)
       .to({ speed: randSpeed }, randSpeed * 100)
       .yoyo(true)
       .repeat(1)
       .easing(TWEEN.Easing.Quadratic.Out)
       .onComplete(() => {
-        console.log(wheel.rotation);
+        isSpinning = false;
 
-        let pointing = segments.find((s) => isCollide(s, pointer));
-        console.log("pointing: ", pointing);
+        const collides = segments.filter((i) => isCollide(i.segment, pointer));
+        let pointing = collides[0];
+        if (collides.length > 1) {
+          pointing = collides[1];
+        }
+        console.log("pointing", pointing?.label);
+        showNotif("You got " + pointing?.label);
+
+        // let bound = pointing?.segment.getBounds();
+        // if (bound) {
+        //   debugRect.x = bound.x;
+        //   debugRect.y = bound.y;
+        //   debugRect.width = bound.width;
+        //   debugRect.height = bound.height;
+        // }
+
+        segments.forEach((i) => {
+          let collide = isCollide(i.segment, pointer);
+          console.log(collide, i.label);
+        });
       })
       .stop()
       .start();
@@ -95,8 +134,6 @@
       bounds1.y + bounds1.height > bounds2.y
     );
   }
-
-  const pointer = new PIXI.Graphics();
 
   // game loop update
   function animate(time: number) {
@@ -127,33 +164,52 @@
     pointer.beginFill(0xde3249);
     pointer.drawRect(-10, -10, 20, 20);
     pointer.endFill();
-    pointer.x = app.screen.width / 2 + 300;
-    pointer.y = app.screen.height / 2;
+    pointer.x = app.screen.width / 2;
+    pointer.y = app.screen.height / 2 - 300;
     app.stage.addChild(pointer);
+
+    // app.stage.addChild(debugRect);
 
     animate(performance.now());
   }
 
   onMount(() => {
-    contentText = "Eat\nSleep\nBath\nRetry";
+    let contentText = "0,10,20,30,40,0,200,120,60,20,0,90,60,30,10";
+    // let contentText = "0,10,20,30";
+    let options = contentText.split(",");
+    genWheel(options);
     createApp();
   });
-
-  let contentText = "";
-  $: options = contentText.split("\n");
-  $: genWheel(options);
 </script>
 
 <div class="relative bg-zinc-900 w-screen h-screen">
   <div bind:this={gameContainer} class="w-screen h-screen" />
 
-  <div class="absolute left-0 top-0 h-full bg-zinc-800 w-[400px] p-4">
-    <label for="content">Content</label>
-    <textarea
-      name=""
-      id="content"
-      class="p-2 rounded bg-zinc-700 w-full h-60"
-      bind:value={contentText}
-    />
+  {#if isShowNotif}
+    <div
+      class="absolute top-10 h-[100px] left-1/2 transform -translate-x-1/2 w-[400px] p-4"
+    >
+      <p class="text-center text-3xl font-bold text-white">{notifMsg}</p>
+    </div>
+  {/if}
+
+  <div
+    class="absolute bottom-10 h-[100px] left-1/2 transform -translate-x-1/2 w-[400px] p-4"
+  >
+    <button
+      disabled={isSpinning}
+      class="w-full h-full bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-700 transition py-2 px-4 rounded-full text-3xl font-bold text-white"
+      on:click={spinWheel}>SPIN</button
+    >
   </div>
+
+  <!-- <div class="absolute left-0 top-0 h-full bg-zinc-800 w-[400px] p-4"> -->
+  <!--   <label for="content">Content</label> -->
+  <!--   <textarea -->
+  <!--     name="" -->
+  <!--     id="content" -->
+  <!--     class="p-2 rounded bg-zinc-700 w-full h-60" -->
+  <!--     bind:value={contentText} -->
+  <!--   /> -->
+  <!-- </div> -->
 </div>
